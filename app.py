@@ -61,7 +61,6 @@ def authors_view():
     elif request.method == "POST":
         if request.is_json:
             try:
-                # get data
                 data = request.json
                 name = data.get("name")
 
@@ -72,9 +71,8 @@ def authors_view():
                     raise TypeError('The "name" property must be a string!') 
                 
                 if name == "":
-                    raise ValueError('The "name" property cannot be empty!') 
+                    raise ValueError('The "name" property cannot be an empty string!') 
 
-                # save the author
                 author = Author(name=name)
                 author.save()
 
@@ -89,7 +87,66 @@ def authors_view():
         authors = Author.delete().execute()
         return Response(json.dumps(authors, indent=2), status=200)
 
-@app.route("/delete")
-def delete_view():
-    Author.delete().execute()
-    return redirect("/")
+@app.route("/books", methods=["GET", "POST", "DELETE"])
+def books_view():
+    if request.method == "GET":
+        try:
+            page = request.args.get("page")
+
+            if page == None:
+                raise TypeError('The "page" param is required!') 
+
+            if not is_valid_number(page):
+                raise TypeError('The "page" param is an invalid number!') 
+            
+            # if page was a float string, raise ValueError
+            page = int(page)
+            offset = 10
+
+            if page < 1:
+                raise TypeError('The "page" param must be a positive integer greater then zero!') 
+            
+            books = Book.select().paginate(page, offset)
+            total_pages = math.ceil(Book.select().count() / offset)
+            books_dict = [model_to_dict(a) for a in books]
+            
+            data = {
+                "books": books_dict,
+                "total_pages": total_pages
+            }
+            data["next_page"] = page + 1 if page < total_pages else None
+            
+            return Response(json.dumps(data, indent=2), status=200)
+
+        except TypeError as e:
+            return Response(str(e), status=400)
+        
+        except ValueError as e:
+            msg = 'The "page" param must be a positive integer greater then zero!'
+            return Response(msg, status=400)
+    
+    elif request.method == "POST":
+        if request.is_json:
+            try:
+                data = request.json
+                name = data.get("name")
+                edition = data.get("edition")
+                publication_year = data.get("publication_year")
+
+                book = Book(
+                    name=name, 
+                    edition=edition, 
+                    publication_year=publication_year
+                )
+                book.save()
+
+                return Response(json.dumps(data, indent=2), status=200)
+            except Exception as e:
+                return Response(str(e), status=400)
+
+        else:
+            return Response("There is no json!", status=400)
+
+    elif request.method == "DELETE":
+        books = Book.delete().execute()
+        return Response(json.dumps(books, indent=2), status=200)
