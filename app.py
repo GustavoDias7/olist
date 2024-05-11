@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, Response
+from flask import Flask, render_template, request, Response
 from playhouse.shortcuts import model_to_dict
 import csv
 from io import TextIOWrapper
@@ -6,6 +6,7 @@ from models import Author, Book, AuthorBook
 import math
 import json
 from validation import is_valid_number
+import peewee
 
 app = Flask(__name__)
 
@@ -124,29 +125,67 @@ def books_view():
         except ValueError as e:
             msg = 'The "page" param must be a positive integer greater then zero!'
             return Response(msg, status=400)
-    
-    elif request.method == "POST":
-        if request.is_json:
-            try:
-                data = request.json
-                name = data.get("name")
-                edition = data.get("edition")
-                publication_year = data.get("publication_year")
-
-                book = Book(
-                    name=name, 
-                    edition=edition, 
-                    publication_year=publication_year
-                )
-                book.save()
-
-                return Response(json.dumps(data, indent=2), status=200)
-            except Exception as e:
-                return Response(str(e), status=400)
-
-        else:
-            return Response("There is no json!", status=400)
 
     elif request.method == "DELETE":
         books = Book.delete().execute()
         return Response(json.dumps(books, indent=2), status=200)
+    
+@app.route("/book", methods=["GET", "POST", "PATCH", "DELETE"])
+def book_view():
+    if request.method == "GET":
+        try:
+            id = request.args.get("id")
+            book = Book.get(Book.id == id)
+            book_dict = model_to_dict(book)
+            return Response(json.dumps(book_dict, indent=2), status=200)
+        except peewee.DoesNotExist as e:
+            id = request.args.get("id")
+            return Response(f"The id '{id}'' does not exist.", status=400)
+        except Exception as e:
+            return Response(str(e), status=400)
+    
+    elif request.method == "POST":
+        try:
+            data = request.json
+            name = data.get("name")
+            edition = data.get("edition")
+            publication_year = data.get("publication_year")
+
+            book = Book(
+                name=name, 
+                edition=edition, 
+                publication_year=publication_year
+            )
+            book.save()
+            book_dict = model_to_dict(book)
+
+            return Response(json.dumps(book_dict, indent=2))
+        except Exception as e:
+            return Response(str(e), status=400)
+    
+    elif request.method == "PATCH":
+        data = request.json
+
+        id = data.get("id")
+        name = data.get("name")
+        edition = data.get("edition")
+        publication_year = data.get("publication_year")
+
+        book = Book.get(Book.id == id)
+
+        if edition: book.edition = edition
+        if name: book.name = name
+        if publication_year: book.publication_year = publication_year
+                
+        book.save()  # Save the changes
+        book_dict = model_to_dict(book)
+        
+        return Response(json.dumps(book_dict, indent=2), status=200)
+
+    elif request.method == "DELETE":
+        id = int(request.args.get("id"))
+        book = Book.delete().where(Book.id == id)
+        book.execute()
+        return Response(f"The book {id} has been deleted!", status=200)
+
+    
