@@ -134,18 +134,19 @@ def books_view():
 def book_view():
     if request.method == "GET":
         try:
-            id = request.args.get("id")
-            name = request.args.get("name")
-            edition = request.args.get("edition")
-            publication_year = request.args.get("publication_year")
+            allowed_args = ["id", "name", "edition", "publication_year"]
+            args = {}
+            for ra in request.args:
+                if ra in allowed_args:
+                    args[ra] = request.args[ra]
 
             expression = None
-
-            for i, x in enumerate(request.args):
-                if (i == 0):
-                    expression |= (getattr(Book,x) == request.args.get(x))
+            for i, x in enumerate(args):
+                print(x)
+                if i == 0:
+                    expression |= (getattr(Book,x) == args.get(x))
                 else:
-                    expression &= (getattr(Book,x) == request.args.get(x))
+                    expression &= (getattr(Book,x) == args.get(x))
 
             book = Book.select()
             if expression != None:
