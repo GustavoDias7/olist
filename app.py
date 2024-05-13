@@ -135,8 +135,24 @@ def book_view():
     if request.method == "GET":
         try:
             id = request.args.get("id")
-            book = Book.get(Book.id == id)
-            book_dict = model_to_dict(book)
+            name = request.args.get("name")
+            edition = request.args.get("edition")
+            publication_year = request.args.get("publication_year")
+
+            expression = None
+
+            for i, x in enumerate(request.args):
+                if (i == 0):
+                    expression |= (getattr(Book,x) == request.args.get(x))
+                else:
+                    expression &= (getattr(Book,x) == request.args.get(x))
+
+            book = Book.select()
+            if expression != None:
+                book = book.where(expression)
+
+            book_dict = [model_to_dict(b) for b in book]
+
             return Response(json.dumps(book_dict, indent=2), status=200)
         except peewee.DoesNotExist as e:
             id = request.args.get("id")
@@ -187,5 +203,3 @@ def book_view():
         book = Book.delete().where(Book.id == id)
         book.execute()
         return Response(f"The book {id} has been deleted!", status=200)
-
-    
