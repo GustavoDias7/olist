@@ -1,6 +1,6 @@
 from peewee import *
 
-db = SqliteDatabase('database.sqlite3')
+db = SqliteDatabase('database.sqlite3', pragmas={'foreign_keys': 1})
 
 class BaseModel(Model):
     class Meta:
@@ -17,11 +17,11 @@ class Book(BaseModel):
     publication_year = DateField()
 
 class AuthorBook(BaseModel):
-    author = ForeignKeyField(Author)
-    book = ForeignKeyField(Book)
+    author_id = ForeignKeyField(Author, backref="authorbooks")
+    book_id = ForeignKeyField(Book, backref="authorbooks")
 
     class Meta:
-        primary_key = CompositeKey('author', 'book')
+        primary_key = CompositeKey('author_id', 'book_id')
 
 
 db.create_tables([Author, Book, AuthorBook])

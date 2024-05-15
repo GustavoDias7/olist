@@ -7,6 +7,7 @@ import math
 import json
 from validation import is_valid_number
 import peewee
+from peewee import fn, JOIN
 
 app = Flask(__name__)
 
@@ -21,7 +22,7 @@ def index_view():
     return render_template("pages/index.jinja")
 
 
-@app.route("/authors", methods=["GET", "POST", "DELETE"])
+@app.route("/authors", methods=["GET", "POST", "PATCH", "DELETE"])
 def authors_view():
     if request.method == "GET":
         try:
@@ -83,6 +84,22 @@ def authors_view():
 
         else:
             return Response("There is no json!", status=400)
+        
+        
+    elif request.method == "PATCH":
+        data = request.json
+
+        id = data.get("id")
+        name = data.get("name")
+
+        author = Author.get(Author.id == id)
+
+        if name: author.name = name
+                
+        author.save()  # Save the changes
+        book_dict = model_to_dict(author)
+        
+        return Response(json.dumps(book_dict, indent=2), status=200)
 
     elif request.method == "DELETE":
         authors = Author.delete().execute()
@@ -148,13 +165,23 @@ def book_view():
                 else:
                     expression &= (getattr(Book,x) == args.get(x))
 
-            book = Book.select()
+            convert_ids = lambda s: [int(i) for i in (s or '').split(',') if i]
+            book = (Book
+                .select(
+                    Book,
+                    fn.GROUP_CONCAT(Author.id).python_value(convert_ids).alias('author_id'),
+                )
+                .join(AuthorBook, JOIN.LEFT_OUTER, on=(Book.id == AuthorBook.book_id))
+                .join(Author, JOIN.LEFT_OUTER, on=(Author.id == AuthorBook.author_id))
+                .group_by(Book)
+            )
+            
             if expression != None:
                 book = book.where(expression)
 
-            book_dict = [model_to_dict(b) for b in book]
+            book_dict = [b for b in book.dicts()]
 
-            return Response(json.dumps(book_dict, indent=2), status=200)
+            return Response(json.dumps(book_dict), status=200)
         except peewee.DoesNotExist as e:
             id = request.args.get("id")
             return Response(f"The id '{id}'' does not exist.", status=400)
