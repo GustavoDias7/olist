@@ -11,6 +11,7 @@ from peewee import fn, JOIN
 
 app = Flask(__name__)
 
+convert_ids = lambda s: [int(i) for i in (s or '').split(',') if i]
 
 @app.route("/authors", methods=["GET", "POST", "PATCH", "DELETE"])
 def authors_view():
@@ -107,17 +108,15 @@ def book_view():
 
             expression = None
             for i, x in enumerate(args):
-                print(x)
                 if i == 0:
                     expression |= (getattr(Book,x) == args.get(x))
                 else:
                     expression &= (getattr(Book,x) == args.get(x))
 
-            convert_ids = lambda s: [int(i) for i in (s or '').split(',') if i]
             book = (Book
                 .select(
                     Book,
-                    fn.GROUP_CONCAT(Author.id).python_value(convert_ids).alias('author_id'),
+                    fn.GROUP_CONCAT(Author.id).python_value(convert_ids).alias('authors'),
                 )
                 .join(AuthorBook, JOIN.LEFT_OUTER, on=(Book.id == AuthorBook.book_id))
                 .join(Author, JOIN.LEFT_OUTER, on=(Author.id == AuthorBook.author_id))
@@ -142,6 +141,7 @@ def book_view():
             name = data.get("name")
             edition = data.get("edition")
             publication_year = data.get("publication_year")
+            authors = data.get("authors")
 
             book = Book(
                 name=name, 
@@ -149,7 +149,18 @@ def book_view():
                 publication_year=publication_year
             )
             book.save()
+
+            authorbook_list = []
+            if authors and type(authors) == list and len(authors) > 0:
+                for author in authors:
+                    authorbook_list.append({
+                        "author_id": author,
+                        "book_id": book.id
+                    })
+                AuthorBook.insert_many(authorbook_list).execute()
+
             book_dict = model_to_dict(book)
+            book_dict["authors"] = [a["author_id"] for a in authorbook_list]
 
             return Response(json.dumps(book_dict, indent=2))
         except Exception as e:
