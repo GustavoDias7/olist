@@ -95,7 +95,17 @@ def authors_view():
     elif request.method == "DELETE":
         authors = Author.delete().execute()
         return Response(json.dumps(authors, indent=2), status=200)
-    
+
+@app.route("/csv-authors", methods=["POST"])
+def csv_authors():
+    if request.method == "POST":
+        csv_authors = request.files.get("csv_authors")
+        wrapper_authors = TextIOWrapper(csv_authors, encoding='utf-8')
+        csv_reader = csv.DictReader(wrapper_authors, delimiter=',')
+        Author.insert_many(csv_reader).execute()
+        res = {"message": "The authors have been inserted."}
+        return Response(json.dumps(res), status=200)
+
 @app.route("/book", methods=["GET", "POST", "PATCH", "DELETE"])
 def book_view():
     if request.method == "GET":
